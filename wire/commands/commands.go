@@ -46,6 +46,9 @@ const (
 	voteOverhead     = 8 + eddsa.PublicKeySize
 	voteStatusLength = 1
 
+	minIdentityLength = 1
+	registerAccountLength = cmdOverhead + 2 * eddsa.PublicKeySize
+
 	messageTypeMessage messageType = 0
 	messageTypeACK     messageType = 1
 	messageTypeEmpty   messageType = 2
@@ -65,6 +68,7 @@ const (
 	vote                 commandID = 22
 	voteStatus           commandID = 23
 	getVote              commandID = 24
+	registerAccount      commandID = 25
 
 	// ConsensusOk signifies that the GetConsensus request has completed
 	// successfully.
@@ -279,6 +283,40 @@ func (c *PostDescriptorStatus) ToBytes() []byte {
 	out[0] = byte(postDescriptorStatus)
 	binary.BigEndian.PutUint32(out[2:6], postDescriptorStatusLength)
 	out[6] = c.ErrorCode
+	return out
+}
+
+// RegisterAccount is a command used to create a new identity on a Provider
+type RegisterAccount struct {
+	PublicKey *eddsa.PublicKey
+	LinkKey *eddsa.PublicKey
+	Identity []byte
+}
+
+func registrationFromBytes(b []byte) (Command, error) {
+	if len(b) < registerAccountLength + minIdentityLength {
+		return nil, errInvalidCommand
+	}
+	r := new(RegisterAccount)
+	if err := r.PublicKey.FromBytes(b[0:32]); err != nil {
+		return nil, err
+	}
+	if err := r.LinkKey.FromBytes(b[32:64]); err != nil {
+		return nil, err
+	}
+	// XXX: maximum length per database column size
+	r.Identity = make([]byte, 0, len(b)-registerAccountLength)
+	r.Identity = append(r.Identity, b[registerAccountLength:])
+	return r, nil
+}
+
+func (r *RegisterAccount) ToBytes() []byte {
+	out := make([]byte, cmdOverhead+(2*eddsa.PublicKeySize), cmdOverhead+(2*eddsa.PublicKeySize) +len(c.Identity))
+	out[0] = byte(registerAccount)
+	// out[1] is reserved
+	out[2:2 + eddsa.PublicKeySize] = r.PublicKey
+	out[2 + eddsa.PublicKeySize:2 + 2* eddsa.PublicKeySize] = r.LinkKey
+	out = append(out, r.Identity)
 	return out
 }
 
@@ -579,6 +617,8 @@ func FromBytes(b []byte) (Command, error) {
 		return voteFromBytes(b)
 	case voteStatus:
 		return voteStatusFromBytes(b)
+	case registerAccount:
+		return registerAccountFromBytes(b)
 	default:
 		return nil, errInvalidCommand
 	}
