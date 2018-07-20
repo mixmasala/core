@@ -46,7 +46,8 @@ const (
 	voteOverhead     = 8 + eddsa.PublicKeySize
 	voteStatusLength = 1
 
-	revealLength       = 8 + eddsa.PublicKeySize + 32
+	digestLength       = 32
+	revealOverhead     = 8 + eddsa.PublicKeySize + digestLength
 	revealStatusLength = 1
 
 	messageTypeMessage messageType = 0
@@ -67,7 +68,8 @@ const (
 	postDescriptorStatus commandID = 21
 	vote                 commandID = 22
 	voteStatus           commandID = 23
-	reveal               commandID = 26
+	reveal               commandID = 24
+	revealStatus         commandID = 25
 
 	// ConsensusOk signifies that the GetConsensus request has completed
 	// successfully.
@@ -128,13 +130,10 @@ const (
 	RevealOk = 8
 
 	// RevealTooEarly signifies that the peer breaking protocol. XXX: should drop?
-	RevealTooEarly = 8
+	RevealTooEarly = 9
 
 	// RevealNotAuthorized signifies that the revealing entity's key is not white-listed.
-	RevealNotAuthorized = 9
-
-	// RevealTooSoon signifies that the revealing entity is
-	RevealTooSoon = 10
+	RevealNotAuthorized = 10
 
 	// RevealAlreadyReceived signifies that the reveal from that peer was already received.
 	RevealAlreadyReceived = 11
@@ -281,22 +280,49 @@ type Reveal struct {
 }
 
 func (r *Reveal) ToBytes() []byte {
-	out := make([]byte, 2+8, 2+8+32+32)
+	out := make([]byte, cmdOverhead+revealOverhead)
 	out[0] = byte(reveal)
 	// out[1] reserved
-	binary.BigEndian.PutUint64(out[2:10], r.Epoch)
-	copy(out[10:10+eddsa.PublicKeySize], r.PublicKey.Bytes())
-	copy(out[10+eddsa.PublicKeySize:10+eddsa.PublicKeySize+32], r.Digest[:])
+	binary.BigEndian.PutUint32(out[2:6], uint32(revealOverhead))
+	binary.BigEndian.PutUint64(out[6:14], r.Epoch)
+	copy(out[14:14+eddsa.PublicKeySize], r.PublicKey.Bytes())
+	copy(out[14+eddsa.PublicKeySize:14+eddsa.PublicKeySize+32], r.Digest[:])
 	return out
+}
+
+func revealFromBytes(b []byte) (Command, error) {
+	if len(b) < revealOverhead {
+		return nil, errors.New(" wtf: errInvalidCommand")
+	}
+
+	r := new(Reveal)
+	r.Epoch = binary.BigEndian.Uint64(b[0:8])
+	r.PublicKey = new(eddsa.PublicKey)
+	err := r.PublicKey.FromBytes(b[8:40])
+	if err != nil {
+		return nil, err
+	}
+	copy(r.Digest[:], b[40:])
+	return r, nil
 }
 
 type RevealStatus struct {
 	ErrorCode uint8
 }
 
+func revealStatusFromBytes(b []byte) (Command, error) {
+	if len(b) != revealStatusLength {
+		return nil, errors.New(" wtf: errInvalidCommand")
+	}
+
+	r := new(RevealStatus)
+	r.ErrorCode = b[0]
+	return r, nil
+}
+
 func (r *RevealStatus) ToBytes() []byte {
 	out := make([]byte, cmdOverhead+revealStatusLength)
-	out[0] = byte(voteStatus)
+	out[0] = byte(revealStatus)
 	binary.BigEndian.PutUint32(out[2:6], revealStatusLength)
 	out[6] = r.ErrorCode
 	return out
@@ -597,6 +623,10 @@ func FromBytes(b []byte) (Command, error) {
 		return voteFromBytes(b)
 	case voteStatus:
 		return voteStatusFromBytes(b)
+	case reveal:
+		return revealFromBytes(b)
+	case revealStatus:
+		return revealStatusFromBytes(b)
 	default:
 		return nil, errInvalidCommand
 	}
