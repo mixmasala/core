@@ -46,6 +46,9 @@ const (
 	voteOverhead     = 8 + eddsa.PublicKeySize
 	voteStatusLength = 1
 
+	revealLength       = 8 + eddsa.PublicKeySize + 32
+	revealStatusLength = 1
+
 	messageTypeMessage messageType = 0
 	messageTypeACK     messageType = 1
 	messageTypeEmpty   messageType = 2
@@ -64,6 +67,7 @@ const (
 	postDescriptorStatus commandID = 21
 	vote                 commandID = 22
 	voteStatus           commandID = 23
+	reveal               commandID = 26
 
 	// ConsensusOk signifies that the GetConsensus request has completed
 	// successfully.
@@ -116,6 +120,27 @@ const (
 
 	// VoteAlreadyReceived signifies that the vote from that peer was already received.
 	VoteAlreadyReceived = 6
+
+	// VoteNotFound signifies that the vote was not found.
+	VoteNotFound = 7
+
+	// RevealOk signifies that the reveal was accepted by the peer.
+	RevealOk = 8
+
+	// RevealTooEarly signifies that the peer breaking protocol. XXX: should drop?
+	RevealTooEarly = 8
+
+	// RevealNotAuthorized signifies that the revealing entity's key is not white-listed.
+	RevealNotAuthorized = 9
+
+	// RevealTooSoon signifies that the revealing entity is
+	RevealTooSoon = 10
+
+	// RevealAlreadyReceived signifies that the reveal from that peer was already received.
+	RevealAlreadyReceived = 11
+
+	// RevealTooLate signifies that the reveal from that peer arrived too late.
+	RevealTooLate = 12
 )
 
 var errInvalidCommand = errors.New("wire: invalid wire protocol command")
@@ -246,6 +271,34 @@ func (c *PostDescriptorStatus) ToBytes() []byte {
 	out[0] = byte(postDescriptorStatus)
 	binary.BigEndian.PutUint32(out[2:6], postDescriptorStatusLength)
 	out[6] = c.ErrorCode
+	return out
+}
+
+type Reveal struct {
+	Epoch     uint64
+	PublicKey *eddsa.PublicKey
+	Digest    [32]byte
+}
+
+func (r *Reveal) ToBytes() []byte {
+	out := make([]byte, 2+8, 2+8+32+32)
+	out[0] = byte(reveal)
+	// out[1] reserved
+	binary.BigEndian.PutUint64(out[2:10], r.Epoch)
+	copy(out[10:10+eddsa.PublicKeySize], r.PublicKey.Bytes())
+	copy(out[10+eddsa.PublicKeySize:10+eddsa.PublicKeySize+32], r.Digest[:])
+	return out
+}
+
+type RevealStatus struct {
+	ErrorCode uint8
+}
+
+func (r *RevealStatus) ToBytes() []byte {
+	out := make([]byte, cmdOverhead+revealStatusLength)
+	out[0] = byte(voteStatus)
+	binary.BigEndian.PutUint32(out[2:6], revealStatusLength)
+	out[6] = r.ErrorCode
 	return out
 }
 
