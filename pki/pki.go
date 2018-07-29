@@ -72,11 +72,11 @@ type Document struct {
 	// network.
 	Providers []*MixDescriptor
 
-	// SRCommit is the Shared Random Commit Value
-	SRVCommit []byte
+	// The Shared Random Commit used by the voting process.
+	SharedRandomCommit []byte
 
-	// SRValue is the Shared Random Value
-	SRValue []byte
+	// The Shared Random Value produced by voting process.
+	SharedRandomValue []byte
 }
 
 // String returns a string representation of a Document.
@@ -92,7 +92,7 @@ func (d *Document) String() string {
 		return s
 	}
 
-	s := fmt.Sprintf("&{Epoch:%v MixLambda:%v MixMaxDelay:%v SendLambda:%v SendShift: %v SendMaxInterval: %v SRValue: %v Topology:", d.Epoch, d.MixLambda, d.MixMaxDelay, d.SendLambda, d.SendShift, d.SendMaxInterval, d.SRValue)
+	s := fmt.Sprintf("&{Epoch:%v MixLambda:%v MixMaxDelay:%v SendLambda:%v SendShift: %v SendMaxInterval: %v SharedRandomValue: %v Topology:", d.Epoch, d.MixLambda, d.MixMaxDelay, d.SendLambda, d.SendShift, d.SendMaxInterval, d.SharedRandomValue)
 	for l, nodes := range d.Topology {
 		s += fmt.Sprintf("[%v]{", l)
 		s += stringifyDescSlice(nodes)

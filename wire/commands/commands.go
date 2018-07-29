@@ -286,7 +286,7 @@ func (r *Reveal) ToBytes() []byte {
 	binary.BigEndian.PutUint32(out[2:6], uint32(revealOverhead))
 	binary.BigEndian.PutUint64(out[6:14], r.Epoch)
 	copy(out[14:14+eddsa.PublicKeySize], r.PublicKey.Bytes())
-	copy(out[14+eddsa.PublicKeySize:14+eddsa.PublicKeySize+32], r.Digest[:])
+	copy(out[14+eddsa.PublicKeySize:], r.Digest[:])
 	return out
 }
 
